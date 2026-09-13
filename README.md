@@ -1,63 +1,97 @@
-# andesstay-ms-reservations
+# 🏨 AndesStay — Microservicio de Reservas (`ms-andesstay-reservations`)
 
-Microservicio de reservas para **AndesStay**, plataforma de reservas de hostales y cabañas.
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://www.oracle.com/java/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
 
-## Arquitectura
+Servicio de dominio encargado de la gestión integral de reservas, control de estados del ciclo de hospedaje y coordinación de disponibilidad para la plataforma **AndesStay**.
 
-```
-Angular (MSAL + PKCE) -> AWS API Gateway (JWT Authorizer) -> ms-andesstay-bff -> ms-andesstay-reservations
-                                                                              -> ms-andesstay-catalog
-```
+---
 
-## Tecnologias
+## 👥 Integrantes del Equipo
 
-- Java 17
-- Spring Boot 4.1.1 (Spring Web MVC, Actuator, Lombok)
-- Maven 3.9.16 (Maven Wrapper)
-- Docker (build multi-stage)
+* **Cristian Monsalve** — *Identidad, Frontend Angular & GitHub Project*
+* **Héctor Olivares** — *BFF, Catálogo & Seguridad Backend*
+* **Rolando Lillo** — *API Gateway, Reservas & Despliegue Infraestructura* (Dueño del servicio)
 
-## Requisitos
+---
 
-- JDK 17
-- Docker (opcional, para contenedor)
+## 🏗️ Arquitectura y Flujo de Llamadas
 
-## Ejecucion local
+Este microservicio se despliega de manera privada dentro de la red interna de AWS EC2 / Docker y **nunca es consumido directamente por el cliente**.
 
+Cliente (Angular + MSAL) ──► AWS API Gateway (JWT Authorizer) ──► ms-andesstay-bff ──► ms-andesstay-reservations
+
+
+---
+
+## 🛠️ Tecnologías
+
+* **Lenguaje & Framework:** Java 17 / Spring Boot 4.1.1 (Spring WebMVC, Spring Data JPA)
+* **Base de Datos:** Oracle Database (Nube) / PostgreSQL / H2 (Local)
+* **Pruebas:** JUnit 5, MockMvc
+* **Contenerización:** Docker / Docker Compose (Build multi-stage con Alpine JRE)
+
+---
+
+## 📌 Contrato de Endpoints y Roles (`/api/reservations/*`)
+
+| Método | Endpoint | Roles Permitidos | Descripción / Regla |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/reservations/health` | Público | Health check del servicio. |
+| `GET` | `/api/reservations` | Admin, Operador, Cliente | Lista reservas (Cliente solo ve las suyas). |
+| `POST` | `/api/reservations` | Operador, Cliente | Crea una reserva en estado `CREADA`. |
+| `GET` | `/api/reservations/{id}` | Admin, Operador, Cliente | Detalle de reserva (Cliente solo si es dueño). |
+| `PUT` | `/api/reservations/{id}/status` | Admin, Operador | Cambia el estado de la reserva. |
+
+### 🔄 Máquina de Estados del Ciclo de Vida
+CREADA ──► CONFIRMADA ──► CHECKIN_PENDIENTE ──► EN_ESTADÍA ──► CHECKOUT
+│           │
+└──► CANCELADA ◄──┘
+
+> ⚠️ **Regla de Negocio Crítica:** No se permite realizar check-in (`CHECKIN_PENDIENTE` / `EN_ESTADÍA`) si la reserva no fue previamente **CONFIRMADA**.
+
+---
+
+## 🚀 Ejecución Local
+
+### Prerrequisitos
+* Java 17 JDK
+* Maven 3.9+ (o usar `./mvnw`)
+* Docker Desktop (opcional para pruebas en contenedor)
+
+### 1. Compilación y Pruebas Unitarias
 ```bash
-cd reservations
-./mvnw clean verify      # compila y ejecuta los tests
-./mvnw spring-boot:run   # levanta el servicio en el puerto 8082
+./mvnw clean verify
 ```
 
-## Endpoints
-
-| Metodo | Ruta | Descripcion |
-|--------|------|-------------|
-| GET | `/api/reservations/health` | Health check del servicio |
-
-Ejemplo:
-
+### 2. Ejecutar con Spring Boot
 ```bash
-curl http://localhost:8082/api/reservations/health
-# {"status":"UP","service":"ms-andesstay-reservations"}
+./mvnw spring-boot:run
 ```
 
-## Docker
+El servicio estará disponible en http://localhost:8082.
 
+---
+
+## 🐳 Ejecución con Docker
+
+### Construir la imagen local
 ```bash
-cd reservations
 docker build -t andesstay-reservations .
-docker run --rm -p 8082:8082 andesstay-reservations
 ```
 
-## Roadmap (Fase 3)
+### Ejecutar contenedor
+```bash
+docker run -d -p 8082:8082 --name ms-reservations andesstay-reservations
+```
 
-- Modelo de datos de reservas
-- Maquina de estados: `CREADA -> CONFIRMADA -> CHECKIN_PENDIENTE -> EN_ESTADIA -> CHECKOUT / CANCELADA`
-- Endpoints CRUD REST
+---
 
-## Equipo
+## 🔑 Variables de Entorno
 
-- Cristian Monsalve - Frontend Angular + Azure AD
-- Hector Olivares - BFF Spring Boot + Catalogo
-- Rolando Lillo - AWS API Gateway + Reservas + Infraestructura/Despliegue
+| Variable | Valor por Defecto | Descripción |
+| :--- | :--- | :--- |
+| `SERVER_PORT` | `8082` | Puerto interno de escucha. |
+| `SPRING_PROFILES_ACTIVE` | `dev` | Perfil activo (dev, prod). |
+| `DB_URL` | `jdbc:h2:mem:reservationsdb` | URL de conexión a la base de datos. |
