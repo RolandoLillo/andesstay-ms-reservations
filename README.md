@@ -65,6 +65,43 @@ Se conecta a la base de datos PostgreSQL (`postgres-db`) mediante las siguientes
 
 ---
 
+## 🐇 Integración con RabbitMQ (`ms-notify`)
+
+Al **confirmar** una reserva (transición a `CONFIRMADA`) el servicio publica tres mensajes en el
+exchange `cmd.direct`, consumidos por `ms-notify`:
+
+| Routing key           | Consumidor                        | Payload mínimo                                             |
+| :-------------------- | :-------------------------------- | :--------------------------------------------------------- |
+| `email.send`          | `GuestNotificationService`        | `reservationId`, `guestName`, `kind=CONFIRMATION`, `channel=EMAIL`, `guestEmail` |
+| `housekeeping.ticket` | `HousekeepingTicketService`       | `reservationId`, `unitId`, `kind=PREPARATION`              |
+| `voucher.gen`         | `VoucherService`                  | `reservationId`, `guestName`, `document=VOUCHER`           |
+
+El cuerpo es un `NotificationEnvelope` (contrato compartido con `ms-notify`):
+`type` (= routing key), `eventId`, `timestamp`, `traceId`, `correlationId` y `payload`.
+
+Notas de comportamiento:
+
+* La **creación** de una reserva (`CREADA`) **no** publica en RabbitMQ; solo el evento Kafka `RESERVATION_CREATED`.
+* La publicación es **best-effort**: si RabbitMQ no está disponible la confirmación **no** se revierte,
+  se registra el error en logs y el usuario recibe `200 OK`. (El productor Kafka es estricto: si falla
+  devuelve `503` y hace rollback.)
+* `guestEmail` es **opcional** en `POST /api/reservations`. Si no se envía, se omite únicamente el
+  mensaje `email.send` (se siguen publicando `housekeeping.ticket` y `voucher.gen`).
+
+Variables de entorno (con valores por defecto para `dev`):
+
+| Variable                | Descripción           | Valor por Defecto |
+| :---------------------- | :-------------------- | :---------------- |
+| `SPRING_RABBITMQ_HOST`  | Host del broker       | `localhost`       |
+| `SPRING_RABBITMQ_PORT`  | Puerto del broker     | `5672`            |
+| `RABBITMQ_DEFAULT_USER` | Usuario               | `guest`           |
+| `RABBITMQ_DEFAULT_PASS` | Contraseña            | `guest`           |
+
+El exchange (`cmd.direct`) y las routing keys (`email.send`, `housekeeping.ticket`, `voucher.gen`)
+se configuran en `application.properties` (`rabbitmq.exchange.cmd`, `rabbitmq.routing.*`).
+
+---
+
 ## 🐳 Ejecución con Docker
 
 El servicio está empaquetado para ser orquestado junto a PostgreSQL dentro de la red unificada de infraestructura.
