@@ -35,6 +35,9 @@ public class ReservationService {
 		if (!request.checkOutDate().isAfter(request.checkInDate())) {
 			throw new IllegalArgumentException("La fecha de salida debe ser posterior a la fecha de entrada");
 		}
+		if (request.guests() != null && request.guests() <= 0) {
+			throw new IllegalArgumentException("El número de huéspedes debe ser un valor positivo");
+		}
 		Reservation reservation = Reservation.builder()
 				.customerUserId(request.customerUserId())
 				.unitId(request.unitId())
@@ -42,6 +45,9 @@ public class ReservationService {
 				.checkOutDate(request.checkOutDate())
 				.amount(request.amount())
 				.status(ReservationStatus.CREADA)
+				.unitName(request.unitName())
+				.guests(request.guests())
+				.customerName(request.customerName())
 				.build();
 		return reservationRepository.save(reservation);
 	}

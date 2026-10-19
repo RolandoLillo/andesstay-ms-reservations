@@ -7,11 +7,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public record ReservationResponse(Long id, String customerUserId, Long unitId, LocalDate checkInDate,
-		LocalDate checkOutDate, BigDecimal amount, ReservationStatus status) {
+		LocalDate checkOutDate, BigDecimal amount, ReservationStatus status, String unitName, Integer guests,
+		String customerName) {
 
 	public static ReservationResponse from(Reservation reservation) {
 		return new ReservationResponse(reservation.getId(), reservation.getCustomerUserId(), reservation.getUnitId(),
 				reservation.getCheckInDate(), reservation.getCheckOutDate(), reservation.getAmount(),
-				reservation.getStatus());
+				reservation.getStatus(), reservation.getUnitName(), reservation.getGuests(),
+				reservation.getCustomerName());
 	}
 }
