@@ -26,6 +26,13 @@ public class ApiExceptionHandler {
 				HttpStatus.BAD_REQUEST);
 	}
 
+	@ExceptionHandler(EventPublishException.class)
+	public ResponseEntity<ApiError> handleEventPublish(EventPublishException ex) {
+		return new ResponseEntity<>(
+				new ApiError(HttpStatus.SERVICE_UNAVAILABLE.value(), "Error de mensajeria", ex.getMessage()),
+				HttpStatus.SERVICE_UNAVAILABLE);
+	}
+
 	public record ApiError(int status, String error, String message) {
 	}
 }

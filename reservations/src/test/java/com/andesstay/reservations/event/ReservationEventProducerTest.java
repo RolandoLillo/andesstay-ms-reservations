@@ -2,6 +2,7 @@ package com.andesstay.reservations.event;
 
 import com.andesstay.reservations.domain.Reservation;
 import com.andesstay.reservations.domain.ReservationStatus;
+import com.andesstay.reservations.exception.EventPublishException;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
@@ -11,7 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.concurrent.CompletableFuture;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -70,7 +71,7 @@ class ReservationEventProducerTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void publishNoPropagaExcepcionesCuandoElBrokerNoResponde() {
+	void publishPropagaExcepcionesCuandoElBrokerNoResponde() {
 		KafkaTemplate<String, ReservationEvent> kafkaTemplate = mock(KafkaTemplate.class);
 		when(kafkaTemplate.send(anyString(), anyString(), any(ReservationEvent.class)))
 				.thenThrow(new IllegalStateException("broker no disponible"));
@@ -78,12 +79,12 @@ class ReservationEventProducerTest {
 		ReservationEventProducer producer = new ReservationEventProducer(kafkaTemplate);
 		ReservationEvent event = ReservationEvent.created(sampleReservation(), "user-1");
 
-		assertDoesNotThrow(() -> producer.publish(event));
+		assertThrows(EventPublishException.class, () -> producer.publish(event));
 	}
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void publishNoPropagaExcepcionesCuandoElEnvioFallaDeFormaAsincrona() {
+	void publishPropagaExcepcionesCuandoElEnvioFallaDeFormaAsincrona() {
 		KafkaTemplate<String, ReservationEvent> kafkaTemplate = mock(KafkaTemplate.class);
 		when(kafkaTemplate.send(anyString(), anyString(), any(ReservationEvent.class)))
 				.thenReturn(CompletableFuture.failedFuture(new RuntimeException("fallo en el envio")));
@@ -91,6 +92,6 @@ class ReservationEventProducerTest {
 		ReservationEventProducer producer = new ReservationEventProducer(kafkaTemplate);
 		ReservationEvent event = ReservationEvent.created(sampleReservation(), "user-1");
 
-		assertDoesNotThrow(() -> producer.publish(event));
+		assertThrows(EventPublishException.class, () -> producer.publish(event));
 	}
 }
