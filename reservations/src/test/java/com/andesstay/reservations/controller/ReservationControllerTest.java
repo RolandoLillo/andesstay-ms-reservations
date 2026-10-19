@@ -4,6 +4,8 @@ import com.andesstay.reservations.dto.CreateReservationRequest;
 import com.andesstay.reservations.event.ReservationAction;
 import com.andesstay.reservations.event.ReservationEvent;
 import com.andesstay.reservations.event.ReservationEventProducer;
+import com.andesstay.reservations.exception.EventPublishException;
+import com.andesstay.reservations.repository.ReservationRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -45,6 +48,9 @@ class ReservationControllerTest {
 
 	@MockitoBean
 	private ReservationEventProducer reservationEventProducer;
+
+	@Autowired
+	private ReservationRepository reservationRepository;
 
 	private Long createReservation() throws Exception {
 		return createReservation("user-1", 10L);
@@ -297,5 +303,70 @@ class ReservationControllerTest {
 				.andExpect(status().isConflict());
 
 		verify(reservationEventProducer, never()).publish(any(ReservationEvent.class));
+	}
+
+	@Test
+	void cambiarEstadoConHeaderActorPublicaActorReal() throws Exception {
+		Long id = createReservation();
+		clearInvocations(reservationEventProducer);
+
+		mockMvc.perform(put("/api/reservations/{id}/status", id)
+				.header("X-Actor-Id", "admin-1")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"CONFIRMADA\"}"))
+				.andExpect(status().isOk());
+
+		ArgumentCaptor<ReservationEvent> captor = ArgumentCaptor.forClass(ReservationEvent.class);
+		verify(reservationEventProducer, times(1)).publish(captor.capture());
+		assertEquals("admin-1", captor.getValue().actor());
+	}
+
+	@Test
+	void cambiarEstadoSinHeaderActorUsaActorSystem() throws Exception {
+		Long id = createReservation();
+		clearInvocations(reservationEventProducer);
+
+		mockMvc.perform(put("/api/reservations/{id}/status", id)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"CONFIRMADA\"}"))
+				.andExpect(status().isOk());
+
+		ArgumentCaptor<ReservationEvent> captor = ArgumentCaptor.forClass(ReservationEvent.class);
+		verify(reservationEventProducer, times(1)).publish(captor.capture());
+		assertEquals("system", captor.getValue().actor());
+	}
+
+	@Test
+	void crearReservaDevuelve503YNoPersisteCuandoKafkaFalla() throws Exception {
+		long before = reservationRepository.count();
+		doThrow(new EventPublishException("broker caido", new RuntimeException("connection refused")))
+				.when(reservationEventProducer).publish(any(ReservationEvent.class));
+
+		CreateReservationRequest request = new CreateReservationRequest("user-1", 10L,
+				LocalDate.of(2026, 10, 15), LocalDate.of(2026, 10, 20), new BigDecimal("120000"),
+				"Cabana A", 2, "Juan Perez");
+		mockMvc.perform(post("/api/reservations")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(request)))
+				.andExpect(status().isServiceUnavailable());
+
+		assertEquals(before, reservationRepository.count());
+	}
+
+	@Test
+	void cambiarEstadoDevuelve503YNoCambiaEstadoCuandoKafkaFalla() throws Exception {
+		Long id = createReservation();
+		clearInvocations(reservationEventProducer);
+		doThrow(new EventPublishException("broker caido", new RuntimeException("connection refused")))
+				.when(reservationEventProducer).publish(any(ReservationEvent.class));
+
+		mockMvc.perform(put("/api/reservations/{id}/status", id)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"CONFIRMADA\"}"))
+				.andExpect(status().isServiceUnavailable());
+
+		mockMvc.perform(get("/api/reservations/{id}", id))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("CREADA"));
 	}
 }

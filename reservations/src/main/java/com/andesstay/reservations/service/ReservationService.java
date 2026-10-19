@@ -72,7 +72,7 @@ public class ReservationService {
 	}
 
 	@Transactional
-	public Reservation updateStatus(Long id, ReservationStatus target) {
+	public Reservation updateStatus(Long id, ReservationStatus target, String actor) {
 		if (target == null) {
 			throw new IllegalArgumentException("El estado objetivo es obligatorio");
 		}
@@ -80,7 +80,8 @@ public class ReservationService {
 		ReservationStatus previousStatus = reservation.getStatus();
 		reservation.setStatus(previousStatus.transit(target));
 		Reservation saved = reservationRepository.save(reservation);
-		reservationEventProducer.publish(ReservationEvent.statusChanged(saved, previousStatus, SYSTEM_ACTOR));
+		String effectiveActor = (actor == null || actor.isBlank()) ? SYSTEM_ACTOR : actor;
+		reservationEventProducer.publish(ReservationEvent.statusChanged(saved, previousStatus, effectiveActor));
 		return saved;
 	}
 }
