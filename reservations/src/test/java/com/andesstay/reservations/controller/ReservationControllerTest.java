@@ -5,6 +5,7 @@ import com.andesstay.reservations.event.ReservationAction;
 import com.andesstay.reservations.event.ReservationEvent;
 import com.andesstay.reservations.event.ReservationEventProducer;
 import com.andesstay.reservations.exception.EventPublishException;
+import com.andesstay.reservations.messaging.RabbitMqPublisherService;
 import com.andesstay.reservations.repository.ReservationRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -48,6 +49,9 @@ class ReservationControllerTest {
 
 	@MockitoBean
 	private ReservationEventProducer reservationEventProducer;
+
+	@MockitoBean
+	private RabbitMqPublisherService rabbitMqPublisherService;
 
 	@Autowired
 	private ReservationRepository reservationRepository;

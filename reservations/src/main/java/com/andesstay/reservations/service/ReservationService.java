@@ -6,6 +6,8 @@ import com.andesstay.reservations.dto.CreateReservationRequest;
 import com.andesstay.reservations.event.ReservationEvent;
 import com.andesstay.reservations.event.ReservationEventProducer;
 import com.andesstay.reservations.exception.ReservationNotFoundException;
+import com.andesstay.reservations.messaging.RabbitMqPublisherService;
+import com.andesstay.reservations.messaging.ReservationNotification;
 import com.andesstay.reservations.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +26,8 @@ public class ReservationService {
 	private final ReservationRepository reservationRepository;
 
 	private final ReservationEventProducer reservationEventProducer;
+
+	private final RabbitMqPublisherService rabbitMqPublisherService;
 
 	@Transactional
 	public Reservation create(CreateReservationRequest request) {
@@ -54,6 +59,7 @@ public class ReservationService {
 				.unitName(request.unitName())
 				.guests(request.guests())
 				.customerName(request.customerName())
+				.guestEmail(request.guestEmail())
 				.build();
 		Reservation saved = reservationRepository.save(reservation);
 		reservationEventProducer.publish(ReservationEvent.created(saved, saved.getCustomerUserId()));
@@ -82,6 +88,22 @@ public class ReservationService {
 		Reservation saved = reservationRepository.save(reservation);
 		String effectiveActor = (actor == null || actor.isBlank()) ? SYSTEM_ACTOR : actor;
 		reservationEventProducer.publish(ReservationEvent.statusChanged(saved, previousStatus, effectiveActor));
+		if (target == ReservationStatus.CONFIRMADA) {
+			publishConfirmationNotifications(saved);
+		}
 		return saved;
+	}
+
+	private void publishConfirmationNotifications(Reservation reservation) {
+		ReservationNotification notification = new ReservationNotification(
+				String.valueOf(reservation.getId()),
+				reservation.getCustomerName(),
+				reservation.getGuestEmail(),
+				reservation.getUnitId() != null ? String.valueOf(reservation.getUnitId()) : null,
+				UUID.randomUUID().toString(),
+				UUID.randomUUID().toString());
+		rabbitMqPublisherService.publishEmailConfirmation(notification);
+		rabbitMqPublisherService.publishHousekeepingTicket(notification);
+		rabbitMqPublisherService.publishVoucherGeneration(notification);
 	}
 }

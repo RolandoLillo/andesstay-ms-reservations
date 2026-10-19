@@ -57,4 +57,7 @@ public class Reservation {
 
 	@Column(name = "customer_name")
 	private String customerName;
+
+	@Column(name = "guest_email")
+	private String guestEmail;
 }
