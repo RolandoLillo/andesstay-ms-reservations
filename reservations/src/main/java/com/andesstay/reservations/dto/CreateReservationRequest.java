@@ -4,5 +4,5 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public record CreateReservationRequest(String customerUserId, Long unitId, LocalDate checkInDate,
-		LocalDate checkOutDate, BigDecimal amount) {
+		LocalDate checkOutDate, BigDecimal amount, String unitName, Integer guests, String customerName) {
 }

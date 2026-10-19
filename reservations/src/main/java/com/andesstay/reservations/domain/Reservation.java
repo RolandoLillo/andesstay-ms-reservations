@@ -48,4 +48,13 @@ public class Reservation {
 	@Enumerated(EnumType.STRING)
 	@Column(name = "status", nullable = false, length = 20)
 	private ReservationStatus status;
+
+	@Column(name = "unit_name")
+	private String unitName;
+
+	@Column(name = "guests")
+	private Integer guests;
+
+	@Column(name = "customer_name")
+	private String customerName;
 }
