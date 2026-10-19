@@ -3,6 +3,8 @@ package com.andesstay.reservations.service;
 import com.andesstay.reservations.domain.Reservation;
 import com.andesstay.reservations.domain.ReservationStatus;
 import com.andesstay.reservations.dto.CreateReservationRequest;
+import com.andesstay.reservations.event.ReservationEvent;
+import com.andesstay.reservations.event.ReservationEventProducer;
 import com.andesstay.reservations.exception.ReservationNotFoundException;
 import com.andesstay.reservations.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +18,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ReservationService {
 
+	private static final String SYSTEM_ACTOR = "system";
+
 	private final ReservationRepository reservationRepository;
+
+	private final ReservationEventProducer reservationEventProducer;
 
 	@Transactional
 	public Reservation create(CreateReservationRequest request) {
@@ -49,7 +55,9 @@ public class ReservationService {
 				.guests(request.guests())
 				.customerName(request.customerName())
 				.build();
-		return reservationRepository.save(reservation);
+		Reservation saved = reservationRepository.save(reservation);
+		reservationEventProducer.publish(ReservationEvent.created(saved, saved.getCustomerUserId()));
+		return saved;
 	}
 
 	@Transactional(readOnly = true)
@@ -64,12 +72,16 @@ public class ReservationService {
 	}
 
 	@Transactional
-	public Reservation updateStatus(Long id, ReservationStatus target) {
+	public Reservation updateStatus(Long id, ReservationStatus target, String actor) {
 		if (target == null) {
 			throw new IllegalArgumentException("El estado objetivo es obligatorio");
 		}
 		Reservation reservation = findById(id);
-		reservation.setStatus(reservation.getStatus().transit(target));
-		return reservationRepository.save(reservation);
+		ReservationStatus previousStatus = reservation.getStatus();
+		reservation.setStatus(previousStatus.transit(target));
+		Reservation saved = reservationRepository.save(reservation);
+		String effectiveActor = (actor == null || actor.isBlank()) ? SYSTEM_ACTOR : actor;
+		reservationEventProducer.publish(ReservationEvent.statusChanged(saved, previousStatus, effectiveActor));
+		return saved;
 	}
 }

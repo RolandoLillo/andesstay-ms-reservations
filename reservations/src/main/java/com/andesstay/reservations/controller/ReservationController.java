@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -46,8 +47,9 @@ public class ReservationController {
 
 	@PutMapping("/{id}/status")
 	public ResponseEntity<ReservationResponse> updateStatus(@PathVariable Long id,
-			@RequestBody ReservationStatusRequest request) {
-		Reservation reservation = reservationService.updateStatus(id, request.status());
+			@RequestBody ReservationStatusRequest request,
+			@RequestHeader(value = "X-Actor-Id", required = false) String actorId) {
+		Reservation reservation = reservationService.updateStatus(id, request.status(), actorId);
 		return ResponseEntity.ok(ReservationResponse.from(reservation));
 	}
 }
