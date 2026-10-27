@@ -1,9 +1,9 @@
 package com.andesstay.reservations.messaging;
 
+import com.andesstay.reservations.config.RabbitMessagingProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -23,20 +23,26 @@ public class RabbitMqPublisherService {
 	private static final String VOUCHER_DOCUMENT = "VOUCHER";
 
 	private final RabbitTemplate rabbitTemplate;
+	private final RabbitMessagingProperties rabbitMessagingProperties;
 
-	@Value("${rabbitmq.exchange.cmd:cmd.direct}")
-	private String cmdExchange;
+	private String getCmdExchange() {
+		return rabbitMessagingProperties.getExchange();
+	}
 
-	@Value("${rabbitmq.routing.email:email.send}")
-	private String emailRoutingKey;
+	private String getEmailRoutingKey() {
+		return rabbitMessagingProperties.getRouting().getEmail();
+	}
 
-	@Value("${rabbitmq.routing.housekeeping:housekeeping.ticket}")
-	private String housekeepingRoutingKey;
+	private String getHousekeepingRoutingKey() {
+		return rabbitMessagingProperties.getRouting().getHousekeeping();
+	}
 
-	@Value("${rabbitmq.routing.voucher:voucher.gen}")
-	private String voucherRoutingKey;
+	private String getVoucherRoutingKey() {
+		return rabbitMessagingProperties.getRouting().getVoucher();
+	}
 
 	public void publishEmailConfirmation(ReservationNotification notification) {
+		String emailRoutingKey = getEmailRoutingKey();
 		if (isBlank(notification.guestEmail())) {
 			log.warn("Se omite '{}' para reservationId={}: guestEmail ausente",
 					emailRoutingKey, notification.reservationId());
@@ -53,6 +59,7 @@ public class RabbitMqPublisherService {
 	}
 
 	public void publishHousekeepingTicket(ReservationNotification notification) {
+		String housekeepingRoutingKey = getHousekeepingRoutingKey();
 		Map<String, Object> payload = new LinkedHashMap<>();
 		payload.put("reservationId", notification.reservationId());
 		payload.put("unitId", notification.unitId());
@@ -62,6 +69,7 @@ public class RabbitMqPublisherService {
 	}
 
 	public void publishVoucherGeneration(ReservationNotification notification) {
+		String voucherRoutingKey = getVoucherRoutingKey();
 		Map<String, Object> payload = new LinkedHashMap<>();
 		payload.put("reservationId", notification.reservationId());
 		payload.put("guestName", notification.guestName());
@@ -72,12 +80,13 @@ public class RabbitMqPublisherService {
 
 	private void publish(NotificationEnvelope envelope) {
 		try {
+			String cmdExchange = getCmdExchange();
 			rabbitTemplate.convertAndSend(cmdExchange, envelope.type(), envelope);
 			log.info("Mensaje publicado en exchange={} type={} eventId={} reservationId={}",
 					cmdExchange, envelope.type(), envelope.eventId(), envelope.payload().get("reservationId"));
 		} catch (RuntimeException ex) {
 			log.error("No se pudo publicar mensaje en exchange={} type={} eventId={}",
-					cmdExchange, envelope.type(), envelope.eventId(), ex);
+					getCmdExchange(), envelope.type(), envelope.eventId(), ex);
 		}
 	}
 

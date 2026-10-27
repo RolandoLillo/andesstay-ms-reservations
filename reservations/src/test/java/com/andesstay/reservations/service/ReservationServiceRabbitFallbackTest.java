@@ -1,5 +1,6 @@
 package com.andesstay.reservations.service;
 
+import com.andesstay.reservations.config.RabbitMessagingProperties;
 import com.andesstay.reservations.domain.Reservation;
 import com.andesstay.reservations.domain.ReservationStatus;
 import com.andesstay.reservations.dto.CreateReservationRequest;
@@ -12,7 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -46,12 +46,14 @@ class ReservationServiceRabbitFallbackTest {
 	}
 
 	private RabbitMqPublisherService createPublisher(RabbitTemplate rabbitTemplate) {
-		RabbitMqPublisherService service = new RabbitMqPublisherService(rabbitTemplate);
-		ReflectionTestUtils.setField(service, "cmdExchange", "cmd.direct");
-		ReflectionTestUtils.setField(service, "emailRoutingKey", "email.send");
-		ReflectionTestUtils.setField(service, "housekeepingRoutingKey", "housekeeping.ticket");
-		ReflectionTestUtils.setField(service, "voucherRoutingKey", "voucher.gen");
-		return service;
+		RabbitMessagingProperties properties = new RabbitMessagingProperties();
+		properties.setExchange("cmd.direct");
+		RabbitMessagingProperties.Routing routing = new RabbitMessagingProperties.Routing();
+		routing.setEmail("email.send");
+		routing.setHousekeeping("housekeeping.ticket");
+		routing.setVoucher("voucher.gen");
+		properties.setRouting(routing);
+		return new RabbitMqPublisherService(rabbitTemplate, properties);
 	}
 
 	private Reservation sampleReservation(Long id, ReservationStatus status) {
