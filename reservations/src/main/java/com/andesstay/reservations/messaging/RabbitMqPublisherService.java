@@ -1,7 +1,6 @@
 package com.andesstay.reservations.messaging;
 
 import com.andesstay.reservations.config.RabbitMessagingProperties;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
@@ -10,7 +9,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class RabbitMqPublisherService {
 
@@ -25,8 +23,13 @@ public class RabbitMqPublisherService {
 	private final RabbitTemplate rabbitTemplate;
 	private final RabbitMessagingProperties rabbitMessagingProperties;
 
+	public RabbitMqPublisherService(RabbitTemplate rabbitTemplate, RabbitMessagingProperties rabbitMessagingProperties) {
+		this.rabbitTemplate = rabbitTemplate;
+		this.rabbitMessagingProperties = rabbitMessagingProperties;
+	}
+
 	private String getCmdExchange() {
-		return rabbitMessagingProperties.getExchange();
+		return rabbitMessagingProperties.getExchange() != null ? rabbitMessagingProperties.getExchange().getCmd() : null;
 	}
 
 	private String getEmailRoutingKey() {

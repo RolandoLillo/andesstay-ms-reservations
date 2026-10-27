@@ -27,7 +27,9 @@ class RabbitMqPublisherServiceTest {
 	void setUp() {
 		rabbitTemplate = mock(RabbitTemplate.class);
 		RabbitMessagingProperties properties = new RabbitMessagingProperties();
-		properties.setExchange("cmd.direct");
+		RabbitMessagingProperties.Exchange exchange = new RabbitMessagingProperties.Exchange();
+		exchange.setCmd("cmd.direct");
+		properties.setExchange(exchange);
 		RabbitMessagingProperties.Routing routing = new RabbitMessagingProperties.Routing();
 		routing.setEmail("email.send");
 		routing.setHousekeeping("housekeeping.ticket");
