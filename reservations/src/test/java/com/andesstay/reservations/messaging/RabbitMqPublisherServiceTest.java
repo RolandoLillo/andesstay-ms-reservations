@@ -1,11 +1,11 @@
 package com.andesstay.reservations.messaging;
 
+import com.andesstay.reservations.config.RabbitMessagingProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,11 +26,16 @@ class RabbitMqPublisherServiceTest {
 	@BeforeEach
 	void setUp() {
 		rabbitTemplate = mock(RabbitTemplate.class);
-		publisherService = new RabbitMqPublisherService(rabbitTemplate);
-		ReflectionTestUtils.setField(publisherService, "cmdExchange", "cmd.direct");
-		ReflectionTestUtils.setField(publisherService, "emailRoutingKey", "email.send");
-		ReflectionTestUtils.setField(publisherService, "housekeepingRoutingKey", "housekeeping.ticket");
-		ReflectionTestUtils.setField(publisherService, "voucherRoutingKey", "voucher.gen");
+		RabbitMessagingProperties properties = new RabbitMessagingProperties();
+		RabbitMessagingProperties.Exchange exchange = new RabbitMessagingProperties.Exchange();
+		exchange.setCmd("cmd.direct");
+		properties.setExchange(exchange);
+		RabbitMessagingProperties.Routing routing = new RabbitMessagingProperties.Routing();
+		routing.setEmail("email.send");
+		routing.setHousekeeping("housekeeping.ticket");
+		routing.setVoucher("voucher.gen");
+		properties.setRouting(routing);
+		publisherService = new RabbitMqPublisherService(rabbitTemplate, properties);
 	}
 
 	private ReservationNotification sampleNotification() {
