@@ -62,6 +62,29 @@ Se conecta a la base de datos PostgreSQL (`postgres-db`) mediante las siguientes
 | `POST` | `/api/reservations`             | Crear nueva reserva                 | Requiere Token (BFF) |
 | `GET`  | `/api/reservations/{id}`        | Consultar detalle de reserva por ID | Requiere Token (BFF) |
 | `PUT`  | `/api/reservations/{id}/status` | Actualizar estado de la reserva     | Requiere Token (BFF) |
+| `PUT`  | `/api/reservations/{id}/preparation` | Actualizar preparación de la cabaña | Requiere Token (BFF) |
+
+---
+
+## 🧹 Preparación de cabaña (RES-01)
+
+`PUT /api/reservations/{id}/preparation` acepta `{"status":"IN_PROGRESS"}` o `{"status":"READY"}`.
+Solo se permite si la reserva está en `CONFIRMADA`, `CHECKIN_PENDIENTE` o `EN_ESTADIA` (se excluyen `CREADA`, `CHECKOUT` y `CANCELADA`). Las transiciones válidas son `PENDING -> IN_PROGRESS`, `IN_PROGRESS -> READY` y `PENDING -> READY`; repetir el estado actual es idempotente y no vuelve a publicar. Errores: `400` si el valor de entrada no es `IN_PROGRESS`/`READY`, `404` si la reserva no existe y `409` si la transición no es válida.
+
+Al confirmar una reserva (`CONFIRMADA`) su `preparationStatus` pasa a `PENDING` y se exponen los tres mensajes Rabbit habituales. Al llegar a `READY` se publica un mensaje adicional en `cmd.direct` con routing key `cabin.ready` (configurable vía `rabbitmq.routing.cabin-ready`) y payload:
+
+```json
+{
+  "reservationId": "7",
+  "guestName": "Juan Perez",
+  "guestEmail": "juan@example.com",
+  "unitId": "10",
+  "kind": "CABIN_READY",
+  "channel": "EMAIL"
+}
+```
+
+Se envía dentro del `NotificationEnvelope` compartido. La publicación es **best-effort**: un fallo de RabbitMQ solo se registra en logs y no revierte el `PUT` ni devuelve `5xx`. Pendiente acordar con `ms-notify` (NTF-01) el binding definitivo de `cabin.ready` a su cola.
 
 ---
 
