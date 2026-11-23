@@ -1,15 +1,23 @@
 package com.andesstay.reservations.messaging;
 
+import java.util.UUID;
+
 import com.andesstay.reservations.config.RabbitMessagingProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -107,5 +115,70 @@ class RabbitMqPublisherServiceTest {
 
 		assertDoesNotThrow(() -> publisherService.publishHousekeepingTicket(sampleNotification()));
 		assertDoesNotThrow(() -> publisherService.publishVoucherGeneration(sampleNotification()));
+	}
+
+	@Test
+	void publicaCabinReadyConRoutingKeyYPayloadAcordados() {
+		publisherService.publishCabinReady(sampleNotification());
+
+		ArgumentCaptor<NotificationEnvelope> captor = ArgumentCaptor.forClass(NotificationEnvelope.class);
+		verify(rabbitTemplate).convertAndSend(eq("cmd.direct"), eq("cabin.ready"), captor.capture());
+		NotificationEnvelope envelope = captor.getValue();
+		assertEquals("cabin.ready", envelope.type());
+		assertNotNull(envelope.eventId());
+		assertEquals("trace-1", envelope.traceId());
+		assertEquals("correlation-1", envelope.correlationId());
+		assertEquals("7", envelope.payload().get("reservationId"));
+		assertEquals("Juan Perez", envelope.payload().get("guestName"));
+		assertEquals("juan@example.com", envelope.payload().get("guestEmail"));
+		assertEquals("10", envelope.payload().get("unitId"));
+		assertEquals("CABIN_READY", envelope.payload().get("kind"));
+		assertEquals("EMAIL", envelope.payload().get("channel"));
+	}
+
+	@Test
+	void toleraFalloAlPublicarCabinReadySinPropagarExcepcion() {
+		doThrow(new AmqpException("broker no disponible"))
+				.when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
+
+		assertDoesNotThrow(() -> publisherService.publishCabinReady(sampleNotification()));
+	}
+
+	@Test
+	void serializaCabinReadyConSobreCompletoYPayloadAnidado() {
+		ReservationNotification notification = new ReservationNotification("7", "Juan Perez", null, "10",
+				"trace-1", "correlation-1");
+		publisherService.publishCabinReady(notification);
+
+		ArgumentCaptor<NotificationEnvelope> captor = ArgumentCaptor.forClass(NotificationEnvelope.class);
+		verify(rabbitTemplate).convertAndSend(eq("cmd.direct"), eq("cabin.ready"), captor.capture());
+		NotificationEnvelope envelope = captor.getValue();
+		assertEquals("cabin.ready", envelope.type());
+
+		JsonNode root = assertDoesNotThrow(() -> {
+			Message message = new JacksonJsonMessageConverter().toMessage(envelope, new MessageProperties());
+			return new ObjectMapper().readTree(message.getBody());
+		});
+
+		assertEquals("cabin.ready", root.get("type").asText());
+		assertNotNull(root.get("eventId"));
+		assertDoesNotThrow(() -> UUID.fromString(root.get("eventId").asText()));
+		assertNotNull(root.get("timestamp"));
+		assertTrue(root.get("timestamp").isTextual());
+		assertNotNull(root.get("traceId"));
+		assertEquals("trace-1", root.get("traceId").asText());
+		assertNotNull(root.get("correlationId"));
+		assertEquals("correlation-1", root.get("correlationId").asText());
+
+		JsonNode payload = root.get("payload");
+		assertTrue(payload.isObject());
+		assertEquals("7", payload.get("reservationId").asText());
+		assertEquals("Juan Perez", payload.get("guestName").asText());
+		assertEquals("10", payload.get("unitId").asText());
+		assertEquals("CABIN_READY", payload.get("kind").asText());
+		assertEquals("EMAIL", payload.get("channel").asText());
+		JsonNode guestEmail = payload.get("guestEmail");
+		assertTrue(guestEmail == null || guestEmail.isNull());
+		assertTrue(root.get("reservationId") == null || root.get("reservationId").isMissingNode());
 	}
 }

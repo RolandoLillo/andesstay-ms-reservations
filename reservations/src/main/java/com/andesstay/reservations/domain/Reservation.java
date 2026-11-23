@@ -7,12 +7,14 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -49,6 +51,12 @@ public class Reservation {
 	@Column(name = "status", nullable = false, length = 20)
 	private ReservationStatus status;
 
+	@Enumerated(EnumType.STRING)
+	@Builder.Default
+	@ColumnDefault("'NONE'")
+	@Column(name = "preparation_status", nullable = false, length = 20)
+	private PreparationStatus preparationStatus = PreparationStatus.NONE;
+
 	@Column(name = "unit_name")
 	private String unitName;
 
@@ -60,4 +68,11 @@ public class Reservation {
 
 	@Column(name = "guest_email")
 	private String guestEmail;
+
+	@PrePersist
+	void ensurePreparationStatus() {
+		if (preparationStatus == null) {
+			preparationStatus = PreparationStatus.NONE;
+		}
+	}
 }

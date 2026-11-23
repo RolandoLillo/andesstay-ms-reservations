@@ -14,6 +14,12 @@ public class ApiExceptionHandler {
 				HttpStatus.CONFLICT);
 	}
 
+	@ExceptionHandler(InvalidPreparationTransitionException.class)
+	public ResponseEntity<ApiError> handleInvalidPreparationTransition(InvalidPreparationTransitionException ex) {
+		return new ResponseEntity<>(new ApiError(HttpStatus.CONFLICT.value(), "Transicion invalida", ex.getMessage()),
+				HttpStatus.CONFLICT);
+	}
+
 	@ExceptionHandler(ReservationNotFoundException.class)
 	public ResponseEntity<ApiError> handleNotFound(ReservationNotFoundException ex) {
 		return new ResponseEntity<>(new ApiError(HttpStatus.NOT_FOUND.value(), "No encontrado", ex.getMessage()),

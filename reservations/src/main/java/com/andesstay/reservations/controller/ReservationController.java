@@ -2,9 +2,11 @@ package com.andesstay.reservations.controller;
 
 import com.andesstay.reservations.domain.Reservation;
 import com.andesstay.reservations.dto.CreateReservationRequest;
+import com.andesstay.reservations.dto.PreparationStatusRequest;
 import com.andesstay.reservations.dto.ReservationResponse;
 import com.andesstay.reservations.dto.ReservationStatusRequest;
 import com.andesstay.reservations.service.ReservationService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -50,6 +52,14 @@ public class ReservationController {
 			@RequestBody ReservationStatusRequest request,
 			@RequestHeader(value = "X-Actor-Id", required = false) String actorId) {
 		Reservation reservation = reservationService.updateStatus(id, request.status(), actorId);
+		return ResponseEntity.ok(ReservationResponse.from(reservation));
+	}
+
+	@PutMapping("/{id}/preparation")
+	public ResponseEntity<ReservationResponse> updatePreparation(@PathVariable Long id,
+			@Valid @RequestBody PreparationStatusRequest request,
+			@RequestHeader(value = "X-Actor-Id", required = false) String actorId) {
+		Reservation reservation = reservationService.updatePreparation(id, request.status(), actorId);
 		return ResponseEntity.ok(ReservationResponse.from(reservation));
 	}
 }
