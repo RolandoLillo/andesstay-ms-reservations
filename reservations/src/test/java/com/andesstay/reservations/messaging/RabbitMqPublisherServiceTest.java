@@ -108,4 +108,47 @@ class RabbitMqPublisherServiceTest {
 		assertDoesNotThrow(() -> publisherService.publishHousekeepingTicket(sampleNotification()));
 		assertDoesNotThrow(() -> publisherService.publishVoucherGeneration(sampleNotification()));
 	}
+
+	@Test
+	void publicaCabinReadyConRoutingKeyYPayloadAcordados() {
+		publisherService.publishCabinReady(sampleNotification());
+
+		ArgumentCaptor<NotificationEnvelope> captor = ArgumentCaptor.forClass(NotificationEnvelope.class);
+		verify(rabbitTemplate).convertAndSend(eq("cmd.direct"), eq("cabin.ready"), captor.capture());
+		NotificationEnvelope envelope = captor.getValue();
+		assertEquals("cabin.ready", envelope.type());
+		assertNotNull(envelope.eventId());
+		assertEquals("trace-1", envelope.traceId());
+		assertEquals("correlation-1", envelope.correlationId());
+		assertEquals("7", envelope.payload().get("reservationId"));
+		assertEquals("Juan Perez", envelope.payload().get("guestName"));
+		assertEquals("juan@example.com", envelope.payload().get("guestEmail"));
+		assertEquals("10", envelope.payload().get("unitId"));
+		assertEquals("CABIN_READY", envelope.payload().get("kind"));
+		assertEquals("EMAIL", envelope.payload().get("channel"));
+	}
+
+	@Test
+	void permiteCambiarRoutingKeyDeCabinReady() {
+		RabbitMessagingProperties properties = new RabbitMessagingProperties();
+		RabbitMessagingProperties.Exchange exchange = new RabbitMessagingProperties.Exchange();
+		exchange.setCmd("cmd.direct");
+		properties.setExchange(exchange);
+		RabbitMessagingProperties.Routing routing = new RabbitMessagingProperties.Routing();
+		routing.setCabinReady("cabin.listo");
+		properties.setRouting(routing);
+		RabbitMqPublisherService configurablePublisher = new RabbitMqPublisherService(rabbitTemplate, properties);
+
+		configurablePublisher.publishCabinReady(sampleNotification());
+
+		verify(rabbitTemplate).convertAndSend(eq("cmd.direct"), eq("cabin.listo"), any(Object.class));
+	}
+
+	@Test
+	void toleraFalloAlPublicarCabinReadySinPropagarExcepcion() {
+		doThrow(new AmqpException("broker no disponible"))
+				.when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
+
+		assertDoesNotThrow(() -> publisherService.publishCabinReady(sampleNotification()));
+	}
 }
