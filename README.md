@@ -71,7 +71,7 @@ Se conecta a la base de datos PostgreSQL (`postgres-db`) mediante las siguientes
 `PUT /api/reservations/{id}/preparation` acepta `{"status":"IN_PROGRESS"}` o `{"status":"READY"}`.
 Solo se permite si la reserva está en `CONFIRMADA`, `CHECKIN_PENDIENTE` o `EN_ESTADIA` (se excluyen `CREADA`, `CHECKOUT` y `CANCELADA`). Las transiciones válidas son `PENDING -> IN_PROGRESS`, `IN_PROGRESS -> READY` y `PENDING -> READY`; repetir el estado actual es idempotente y no vuelve a publicar. Errores: `400` si el valor de entrada no es `IN_PROGRESS`/`READY`, `404` si la reserva no existe y `409` si la transición no es válida.
 
-Al confirmar una reserva (`CONFIRMADA`) su `preparationStatus` pasa a `PENDING` y se exponen los tres mensajes Rabbit habituales. Al llegar a `READY` se publica un mensaje adicional en `cmd.direct` con routing key `cabin.ready` (configurable vía `rabbitmq.routing.cabin-ready`) y payload:
+Al confirmar una reserva (`CONFIRMADA`) su `preparationStatus` pasa a `PENDING` y se exponen los tres mensajes Rabbit habituales. Al llegar a `READY` se publica un mensaje adicional en `cmd.direct` con routing key y `type` fijos en `cabin.ready` y payload:
 
 ```json
 {
@@ -84,7 +84,7 @@ Al confirmar una reserva (`CONFIRMADA`) su `preparationStatus` pasa a `PENDING` 
 }
 ```
 
-Se envía dentro del `NotificationEnvelope` compartido. La publicación es **best-effort**: un fallo de RabbitMQ solo se registra en logs y no revierte el `PUT` ni devuelve `5xx`. Pendiente acordar con `ms-notify` (NTF-01) el binding definitivo de `cabin.ready` a su cola.
+Se envía dentro del `NotificationEnvelope` compartido, con `type` y routing key fijos en `cabin.ready` (`CabinReadyService` de `ms-notify` descarta cualquier otro `type`). El binding ya existe en `ms-notify`: `cmd.direct / cabin.ready → q.cmd.cabin.ready`, con DLQ `q.cmd.cabin.ready.dlq`. La publicación es **best-effort**: un fallo de RabbitMQ solo se registra en logs y no revierte el `PUT` ni devuelve `5xx`.
 
 ---
 

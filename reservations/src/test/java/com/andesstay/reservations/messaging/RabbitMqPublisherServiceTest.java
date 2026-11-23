@@ -137,22 +137,6 @@ class RabbitMqPublisherServiceTest {
 	}
 
 	@Test
-	void permiteCambiarRoutingKeyDeCabinReady() {
-		RabbitMessagingProperties properties = new RabbitMessagingProperties();
-		RabbitMessagingProperties.Exchange exchange = new RabbitMessagingProperties.Exchange();
-		exchange.setCmd("cmd.direct");
-		properties.setExchange(exchange);
-		RabbitMessagingProperties.Routing routing = new RabbitMessagingProperties.Routing();
-		routing.setCabinReady("cabin.listo");
-		properties.setRouting(routing);
-		RabbitMqPublisherService configurablePublisher = new RabbitMqPublisherService(rabbitTemplate, properties);
-
-		configurablePublisher.publishCabinReady(sampleNotification());
-
-		verify(rabbitTemplate).convertAndSend(eq("cmd.direct"), eq("cabin.listo"), any(Object.class));
-	}
-
-	@Test
 	void toleraFalloAlPublicarCabinReadySinPropagarExcepcion() {
 		doThrow(new AmqpException("broker no disponible"))
 				.when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
@@ -162,34 +146,28 @@ class RabbitMqPublisherServiceTest {
 
 	@Test
 	void serializaCabinReadyConSobreCompletoYPayloadAnidado() {
-		String cabinReadyRoutingKey = "cabin.listo.contract";
-		RabbitMessagingProperties properties = new RabbitMessagingProperties();
-		RabbitMessagingProperties.Exchange exchange = new RabbitMessagingProperties.Exchange();
-		exchange.setCmd("cmd.direct");
-		properties.setExchange(exchange);
-		RabbitMessagingProperties.Routing routing = new RabbitMessagingProperties.Routing();
-		routing.setCabinReady(cabinReadyRoutingKey);
-		properties.setRouting(routing);
-		RabbitMqPublisherService configurablePublisher = new RabbitMqPublisherService(rabbitTemplate, properties);
-
 		ReservationNotification notification = new ReservationNotification("7", "Juan Perez", null, "10",
 				"trace-1", "correlation-1");
-		configurablePublisher.publishCabinReady(notification);
+		publisherService.publishCabinReady(notification);
 
 		ArgumentCaptor<NotificationEnvelope> captor = ArgumentCaptor.forClass(NotificationEnvelope.class);
-		verify(rabbitTemplate).convertAndSend(eq("cmd.direct"), eq(cabinReadyRoutingKey), captor.capture());
+		verify(rabbitTemplate).convertAndSend(eq("cmd.direct"), eq("cabin.ready"), captor.capture());
 		NotificationEnvelope envelope = captor.getValue();
-		assertEquals(cabinReadyRoutingKey, envelope.type());
+		assertEquals("cabin.ready", envelope.type());
 
 		JsonNode root = assertDoesNotThrow(() -> {
 			Message message = new JacksonJsonMessageConverter().toMessage(envelope, new MessageProperties());
 			return new ObjectMapper().readTree(message.getBody());
 		});
 
-		assertEquals(cabinReadyRoutingKey, root.get("type").asText());
+		assertEquals("cabin.ready", root.get("type").asText());
+		assertNotNull(root.get("eventId"));
 		assertDoesNotThrow(() -> UUID.fromString(root.get("eventId").asText()));
+		assertNotNull(root.get("timestamp"));
 		assertTrue(root.get("timestamp").isTextual());
+		assertNotNull(root.get("traceId"));
 		assertEquals("trace-1", root.get("traceId").asText());
+		assertNotNull(root.get("correlationId"));
 		assertEquals("correlation-1", root.get("correlationId").asText());
 
 		JsonNode payload = root.get("payload");

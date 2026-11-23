@@ -26,6 +26,5 @@ class RabbitMessagingPropertiesBindingTest {
 		assertEquals("housekeeping.ticket", properties.getRouting().getHousekeeping());
 		assertNotNull(properties.getRouting().getVoucher());
 		assertEquals("voucher.gen", properties.getRouting().getVoucher());
-		assertEquals("cabin.ready", properties.getRouting().getCabinReady());
 	}
 }

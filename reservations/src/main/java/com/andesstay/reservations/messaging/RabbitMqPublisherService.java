@@ -20,6 +20,10 @@ public class RabbitMqPublisherService {
 
 	private static final String VOUCHER_DOCUMENT = "VOUCHER";
 
+	private static final String CABIN_READY_ROUTING_KEY = "cabin.ready";
+
+	private static final String CABIN_READY_TYPE = "cabin.ready";
+
 	private static final String CABIN_READY_KIND = "CABIN_READY";
 
 	private final RabbitTemplate rabbitTemplate;
@@ -44,10 +48,6 @@ public class RabbitMqPublisherService {
 
 	private String getVoucherRoutingKey() {
 		return rabbitMessagingProperties.getRouting().getVoucher();
-	}
-
-	private String getCabinReadyRoutingKey() {
-		return rabbitMessagingProperties.getRouting().getCabinReady();
 	}
 
 	public void publishEmailConfirmation(ReservationNotification notification) {
@@ -88,7 +88,6 @@ public class RabbitMqPublisherService {
 	}
 
 	public void publishCabinReady(ReservationNotification notification) {
-		String cabinReadyRoutingKey = getCabinReadyRoutingKey();
 		Map<String, Object> payload = new LinkedHashMap<>();
 		payload.put("reservationId", notification.reservationId());
 		payload.put("guestName", notification.guestName());
@@ -96,14 +95,19 @@ public class RabbitMqPublisherService {
 		payload.put("unitId", notification.unitId());
 		payload.put("kind", CABIN_READY_KIND);
 		payload.put("channel", EMAIL_CHANNEL);
-		publish(NotificationEnvelope.create(cabinReadyRoutingKey, notification.traceId(), notification.correlationId(),
-				payload));
+		NotificationEnvelope envelope = NotificationEnvelope.create(CABIN_READY_TYPE, notification.traceId(),
+				notification.correlationId(), payload);
+		publish(CABIN_READY_ROUTING_KEY, envelope);
 	}
 
 	private void publish(NotificationEnvelope envelope) {
+		publish(envelope.type(), envelope);
+	}
+
+	private void publish(String routingKey, NotificationEnvelope envelope) {
 		try {
 			String cmdExchange = getCmdExchange();
-			rabbitTemplate.convertAndSend(cmdExchange, envelope.type(), envelope);
+			rabbitTemplate.convertAndSend(cmdExchange, routingKey, envelope);
 			log.info("Mensaje publicado en exchange={} type={} eventId={} reservationId={}",
 					cmdExchange, envelope.type(), envelope.eventId(), envelope.payload().get("reservationId"));
 		} catch (RuntimeException ex) {
