@@ -1,10 +1,12 @@
 package com.andesstay.reservations.service;
 
+import com.andesstay.reservations.domain.PreparationStatus;
 import com.andesstay.reservations.domain.Reservation;
 import com.andesstay.reservations.domain.ReservationStatus;
 import com.andesstay.reservations.dto.CreateReservationRequest;
 import com.andesstay.reservations.event.ReservationEvent;
 import com.andesstay.reservations.event.ReservationEventProducer;
+import com.andesstay.reservations.exception.InvalidPreparationTransitionException;
 import com.andesstay.reservations.exception.ReservationNotFoundException;
 import com.andesstay.reservations.messaging.RabbitMqPublisherService;
 import com.andesstay.reservations.messaging.ReservationNotification;
@@ -14,7 +16,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -22,6 +26,9 @@ import java.util.UUID;
 public class ReservationService {
 
 	private static final String SYSTEM_ACTOR = "system";
+
+	private static final Set<ReservationStatus> PREPARATION_ALLOWED_RESERVATION_STATUSES = EnumSet.of(
+			ReservationStatus.CONFIRMADA, ReservationStatus.CHECKIN_PENDIENTE, ReservationStatus.EN_ESTADIA);
 
 	private final ReservationRepository reservationRepository;
 
@@ -84,7 +91,11 @@ public class ReservationService {
 		}
 		Reservation reservation = findById(id);
 		ReservationStatus previousStatus = reservation.getStatus();
-		reservation.setStatus(previousStatus.transit(target));
+		ReservationStatus nextStatus = previousStatus.transit(target);
+		if (target == ReservationStatus.CONFIRMADA && previousStatus != ReservationStatus.CONFIRMADA) {
+			reservation.setPreparationStatus(PreparationStatus.PENDING);
+		}
+		reservation.setStatus(nextStatus);
 		Reservation saved = reservationRepository.save(reservation);
 		String effectiveActor = (actor == null || actor.isBlank()) ? SYSTEM_ACTOR : actor;
 		reservationEventProducer.publish(ReservationEvent.statusChanged(saved, previousStatus, effectiveActor));
@@ -92,6 +103,42 @@ public class ReservationService {
 			publishConfirmationNotifications(saved);
 		}
 		return saved;
+	}
+
+	@Transactional
+	public Reservation updatePreparation(Long id, PreparationStatus target, String actor) {
+		if (target != PreparationStatus.IN_PROGRESS && target != PreparationStatus.READY) {
+			throw new IllegalArgumentException("Estado de preparacion no permitido: " + target);
+		}
+		Reservation reservation = findById(id);
+		if (!PREPARATION_ALLOWED_RESERVATION_STATUSES.contains(reservation.getStatus())) {
+			throw new InvalidPreparationTransitionException(reservation.getStatus(), target);
+		}
+		PreparationStatus previous = reservation.getPreparationStatus() == null
+				? PreparationStatus.NONE
+				: reservation.getPreparationStatus();
+		if (previous == target) {
+			return reservation;
+		}
+		PreparationStatus next = previous.transit(target);
+		reservation.setPreparationStatus(next);
+		Reservation saved = reservationRepository.save(reservation);
+		if (next == PreparationStatus.READY) {
+			publishCabinReady(saved, actor);
+		}
+		return saved;
+	}
+
+	private void publishCabinReady(Reservation reservation, String actor) {
+		String traceId = (actor == null || actor.isBlank()) ? UUID.randomUUID().toString() : actor;
+		ReservationNotification notification = new ReservationNotification(
+				String.valueOf(reservation.getId()),
+				reservation.getCustomerName(),
+				reservation.getGuestEmail(),
+				reservation.getUnitId() != null ? String.valueOf(reservation.getUnitId()) : null,
+				traceId,
+				UUID.randomUUID().toString());
+		rabbitMqPublisherService.publishCabinReady(notification);
 	}
 
 	private void publishConfirmationNotifications(Reservation reservation) {
