@@ -20,6 +20,8 @@ public class RabbitMqPublisherService {
 
 	private static final String VOUCHER_DOCUMENT = "VOUCHER";
 
+	private static final String CABIN_READY_KIND = "CABIN_READY";
+
 	private final RabbitTemplate rabbitTemplate;
 	private final RabbitMessagingProperties rabbitMessagingProperties;
 
@@ -42,6 +44,10 @@ public class RabbitMqPublisherService {
 
 	private String getVoucherRoutingKey() {
 		return rabbitMessagingProperties.getRouting().getVoucher();
+	}
+
+	private String getCabinReadyRoutingKey() {
+		return rabbitMessagingProperties.getRouting().getCabinReady();
 	}
 
 	public void publishEmailConfirmation(ReservationNotification notification) {
@@ -78,6 +84,19 @@ public class RabbitMqPublisherService {
 		payload.put("guestName", notification.guestName());
 		payload.put("document", VOUCHER_DOCUMENT);
 		publish(NotificationEnvelope.create(voucherRoutingKey, notification.traceId(), notification.correlationId(),
+				payload));
+	}
+
+	public void publishCabinReady(ReservationNotification notification) {
+		String cabinReadyRoutingKey = getCabinReadyRoutingKey();
+		Map<String, Object> payload = new LinkedHashMap<>();
+		payload.put("reservationId", notification.reservationId());
+		payload.put("guestName", notification.guestName());
+		payload.put("guestEmail", notification.guestEmail());
+		payload.put("unitId", notification.unitId());
+		payload.put("kind", CABIN_READY_KIND);
+		payload.put("channel", EMAIL_CHANNEL);
+		publish(NotificationEnvelope.create(cabinReadyRoutingKey, notification.traceId(), notification.correlationId(),
 				payload));
 	}
 

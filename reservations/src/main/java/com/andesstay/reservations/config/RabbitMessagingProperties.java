@@ -41,6 +41,7 @@ public class RabbitMessagingProperties {
 		private String email;
 		private String housekeeping;
 		private String voucher;
+		private String cabinReady = "cabin.ready";
 
 		public String getEmail() {
 			return email;
@@ -64,6 +65,14 @@ public class RabbitMessagingProperties {
 
 		public void setVoucher(String voucher) {
 			this.voucher = voucher;
+		}
+
+		public String getCabinReady() {
+			return cabinReady;
+		}
+
+		public void setCabinReady(String cabinReady) {
+			this.cabinReady = cabinReady;
 		}
 	}
 }
